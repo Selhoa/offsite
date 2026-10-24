@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SEL relay</title>
+<script>
+  const ALLOWED_PAGE_ORIGIN = /^(https:\/\/[a-z0-9-]+\.neocities\.org|http:\/\/(localhost|127\.0\.0\.1)(:\d+)?)$/i;
+  const MEDIA_PATH = /^media\/[\w .()-]+\.(mp3|mp4)$/i;
+
+  window.addEventListener('message', async (event) => {
+    if (event.source !== window.parent || !ALLOWED_PAGE_ORIGIN.test(event.origin)) return;
+    const { id, path, timeoutMs = 60000 } = event.data || {};
+    const reply = (message, transfer = []) => window.parent.postMessage({ id, ...message }, event.origin, transfer);
+
+    if (typeof path !== 'string' || !MEDIA_PATH.test(path)) {
+      reply({ error: 'not allowed' });
+      return;
+    }
+
+    try {
+      const response = await fetch(new URL(path, location.href), { signal: AbortSignal.timeout(timeoutMs) });
+      if (!response.ok) {
+        reply({ ok: false, status: response.status });
+        return;
+      }
+      const bytes = await response.arrayBuffer();
+      reply({ ok: true, status: response.status, type: response.headers.get('Content-Type') || '', bytes }, [bytes]);
+    } catch (error) {
+      reply({ error: error.name || 'failed' });
+    }
+  });
+
+  if (window.parent !== window) window.parent.postMessage({ ready: true }, '*');
+</script>
+</head>
+<body></body>
+</html>
